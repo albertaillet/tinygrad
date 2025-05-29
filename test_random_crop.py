@@ -44,6 +44,17 @@ def random_crop_index(X:Tensor, pad_size:int):
   X_flat = X.reshape(BS, C, H*W)  # flatten the spatial dimensions
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
 
+def random_crop_padded_index(X:Tensor, pad_size:int):
+  BS, C, H_pad, W_pad = X.shape
+  H, W = H_pad - 2*pad_size, W_pad - 2*pad_size
+  low_x, idx_x = random_low_and_indices(BS, W, 2*pad_size)
+  low_y, idx_y = random_low_and_indices(BS, H, 2*pad_size)
+  idx_x = idx_x.reshape(1,1,1,W)+low_x.reshape(BS,1,1,1)
+  idx_y = idx_y.reshape(1,1,H,1)+low_y.reshape(BS,1,1,1)
+  idx_flat = (idx_y * W_pad + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)  # flatten the spatial dimensions
+  X_flat = X.reshape(BS, C, H_pad*W_pad)  # flatten the spatial dimensions
+  return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
+
 def pad_reflect(X:Tensor, size:int) -> Tensor:
   X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
   X = X[...,1:size+1,:].flip(-2).cat(X, X[...,-(size+1):-1,:].flip(-2), dim=-2)
@@ -61,14 +72,24 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   set_seed(seed)
   X_cropped_index = random_crop_index(X, pad_size=pad_size).numpy()
   t4 = time.monotonic()
+  set_seed(seed)
+  X_cropped_padded_index = random_crop_padded_index(X_padded, pad_size=pad_size).numpy()
+  t5 = time.monotonic()
+  for k,v in locals().items():
+    if k.startswith("X") and PRINT: print(f"{k:20}\n{v.numpy() if isinstance(v, Tensor) else v}\n")
   assert (X_cropped == X_cropped_in_tinygrad).all(), "Cropped results do not match"
   assert (X_cropped == X_cropped_index).all(), "Cropped results with index do not match"
-  print(f"{(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms masked_select, {(t4-t3)*1000.0:7.2f} ms index")
+  assert (X_cropped == X_cropped_padded_index).all(), "Cropped results with padded index do not match"
+  print(f"{(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms masked_select, {(t4-t3)*1000.0:7.2f} ms index, {(t5-t4)*1000.0:7.2f} ms padded index")
 
 if __name__ == "__main__":
-  BS, SEED, PAD_SIZE = getenv("BS", 512), getenv("SEED", 42), getenv("PAD_SIZE", 2)
-  X, _, _, _ = datasets.cifar()
-  X = X[:BS]
+  BS, SIZE, PAD_SIZE = getenv("BS", 512), getenv("SIZE", 32), getenv("PAD_SIZE", 2)
+  SEED, CIFAR, PRINT = getenv("SEED", 42), getenv("CIFAR", 1), getenv("PRINT", 0)
+  if CIFAR:
+    X, _, _, _ = datasets.cifar()
+  else:
+    X = Tensor.arange(BS * 3 * SIZE * SIZE, dtype=dtypes.int32).reshape(BS, 3, SIZE, SIZE)
+  X = X[:BS, :3, :SIZE, :SIZE]
   print(f"Batch size: {BS}, Seed: {SEED}, Pad size: {PAD_SIZE}")
-  test_crop(X, crop_size=32, seed=SEED, pad_size=PAD_SIZE)
+  test_crop(X, crop_size=SIZE, seed=SEED, pad_size=PAD_SIZE)
   print("Tests passed")
