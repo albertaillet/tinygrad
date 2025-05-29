@@ -1,12 +1,10 @@
 import time
-import random
 from tinygrad import dtypes, Tensor
 from tinygrad.nn import datasets
 from tinygrad.helpers import getenv
 
 def set_seed(seed):
   Tensor.manual_seed(seed)
-  random.seed(seed)
 
 def make_square_mask(shape, mask_size:int) -> Tensor:
   BS, _, H, W = shape
@@ -39,7 +37,7 @@ def cutmix(X:Tensor, Y:Tensor, mask_size:int):
 # ========== In tinygrad ==========
 
 def random_crop_in_tinygrad(X:Tensor, crop_size:int):
-  mask = make_square_mask(X.shape, crop_size)#.realize()
+  mask = make_square_mask(X.shape, crop_size)
   return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
 def cutmix_in_tinygrad(X:Tensor, Y:Tensor, mask_size:int):
@@ -62,7 +60,6 @@ def pad_reflect(X:Tensor, size:int) -> Tensor:
 # ========== Tests ==========
 
 def test_crop(X:Tensor, crop_size:int, seed:int):
-  # import code; code.interact(local=locals() | globals())
   t1 = time.monotonic()
   set_seed(seed)
   X_cropped = random_crop(X, crop_size=crop_size).numpy()
