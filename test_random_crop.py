@@ -30,8 +30,7 @@ def random_crop_masked_select(X:Tensor, crop_size:int):
   return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
 def crop_indices(batch_size:int, dim_size:int, pad_size:int):
-  low = Tensor.randint(batch_size, low=0, high=2*pad_size).reshape(batch_size,1)
-  idx = Tensor.arange(dim_size, dtype=dtypes.int32).reshape(1,dim_size)
+  low, idx = random_low_and_indices(batch_size, dim_size, 2*pad_size)
   idx = (idx - pad_size + low)  # start from padding and add offset
   idx = idx.abs() # left reflect
   idx = (idx < dim_size).where(idx, 2*(dim_size-1)-idx) # right reflect
