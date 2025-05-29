@@ -1,13 +1,14 @@
+import time
 import random
 from tinygrad import dtypes, Tensor
-from tinygrad.helpers import getenv
 from tinygrad.nn import datasets
+from tinygrad.helpers import getenv
 
 def set_seed(seed):
   Tensor.manual_seed(seed)
   random.seed(seed)
 
-def make_square_mask(shape, mask_size) -> Tensor:
+def make_square_mask(shape, mask_size:int) -> Tensor:
   BS, _, H, W = shape
   low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
   low_y = Tensor.randint(BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
@@ -17,15 +18,16 @@ def make_square_mask(shape, mask_size) -> Tensor:
 
 # ========== Previous version ==========
 
-def random_crop(X:Tensor, crop_size=32):
+def random_crop(X:Tensor, crop_size:int):
   mask = make_square_mask(X.shape, crop_size)
   mask = mask.expand((-1,3,-1,-1))
   X_cropped = Tensor(X.numpy()[mask.numpy()])
   return X_cropped.reshape((-1, 3, crop_size, crop_size))
 
-def cutmix(X:Tensor, Y:Tensor, mask_size=3):
+def cutmix(X:Tensor, Y:Tensor, mask_size:int):
   # fill the square with randomly selected images from the same batch
   mask = make_square_mask(X.shape, mask_size)
+  # `order = list(range(0, X.shape[0])); random.shuffle(order)` is replaced to have the same random order as in tinygrad
   order = Tensor.randperm(X.shape[0], device=X.device, dtype=dtypes.int32).numpy()
   X_patch = Tensor(X.numpy()[order], device=X.device, dtype=X.dtype)
   Y_patch = Tensor(Y.numpy()[order], device=Y.device, dtype=Y.dtype)
@@ -36,16 +38,11 @@ def cutmix(X:Tensor, Y:Tensor, mask_size=3):
 
 # ========== In tinygrad ==========
 
-def random_crop_in_tinygrad(X:Tensor, crop_size=32):
+def random_crop_in_tinygrad(X:Tensor, crop_size:int):
+  mask = make_square_mask(X.shape, crop_size)#.realize()
+  return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
-  mask = make_square_mask(X.shape, crop_size)
-  print(mask.realize(), X.shape)
-  # return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
-  print(mask)
-  return X[mask].reshape((-1, 3, crop_size, crop_size))
-
-
-def cutmix_in_tinygrad(X:Tensor, Y:Tensor, mask_size=3):
+def cutmix_in_tinygrad(X:Tensor, Y:Tensor, mask_size:int):
   # fill the square with randomly selected images from the same batch
   mask = make_square_mask(X.shape, mask_size)
   order = Tensor.randperm(X.shape[0], device=X.device, dtype=dtypes.int32)
@@ -55,20 +52,52 @@ def cutmix_in_tinygrad(X:Tensor, Y:Tensor, mask_size=3):
   Y_cutmix = mix_portion * Y_patch + (1. - mix_portion) * Y
   return X_cutmix, Y_cutmix
 
+# ========== Padding ==========
+
+def pad_reflect(X:Tensor, size:int) -> Tensor:
+    X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
+    X = X[...,1:size+1,:].flip(-2).cat(X, X[...,-(size+1):-1,:].flip(-2), dim=-2)
+    return X
+
+# ========== Tests ==========
+
+def test_crop(X:Tensor, crop_size:int, seed:int):
+  # import code; code.interact(local=locals() | globals())
+  t1 = time.monotonic()
+  set_seed(seed)
+  X_cropped = random_crop(X, crop_size=crop_size).numpy()
+  t2 = time.monotonic()
+  set_seed(seed)
+  X_cropped_in_tinygrad = random_crop_in_tinygrad(X, crop_size=crop_size).numpy()
+  t3 = time.monotonic()
+  assert (X_cropped == X_cropped_in_tinygrad).all(), "Cropped results do not match"
+  t4 = time.monotonic()
+  print(f"{(t2-t1)*1000.0:7.2f} ms, {(t3-t2)*1000.0:7.2f} ms, {(t4-t3)*1000.0:7.2f} ms")
+
+def test_cutmix(X:Tensor, Y:Tensor, mask_size:int, seed:int):
+  t1 = time.monotonic()
+  set_seed(seed)
+  X_cutmix, Y_cutmix = cutmix(X, Y, mask_size=mask_size)
+  X_cutmix, Y_cutmix = X_cutmix.numpy(), Y_cutmix.numpy()
+  t2 = time.monotonic()
+  set_seed(seed)
+  X_cutmix_in_tinygrad, Y_cutmix_in_tinygrad = cutmix_in_tinygrad(X, Y, mask_size=mask_size)
+  X_cutmix_in_tinygrad, Y_cutmix_in_tinygrad = X_cutmix_in_tinygrad.numpy(), Y_cutmix_in_tinygrad.numpy()
+  t3 = time.monotonic()
+  assert (X_cutmix == X_cutmix_in_tinygrad).all(), "Cutmix X results do not match"
+  assert (Y_cutmix == Y_cutmix_in_tinygrad).all(), "Cutmix Y results do not match"
+  t4 = time.monotonic()
+  print(f"{(t2-t1)*1000.0:7.2f} ms, {(t3-t2)*1000.0:7.2f} ms, {(t4-t3)*1000.0:7.2f} ms")
+
 if __name__ == "__main__":
   BS, SEED = getenv("BS", 512), getenv("SEED", 42)
   X, Y, _, _ = datasets.cifar()
-  X, Y = X[:BS], Y[:BS].one_hot(10)
+  Y = Y.one_hot(10)
+  X = pad_reflect(X, size=2)  # pad to 36x36
 
-  set_seed(SEED)
-  X_cropped = random_crop(X)
-  X_cutmix, Y_cutmix = cutmix(X, Y)
-
-  set_seed(SEED)
-  X_cropped_in_tinygrad = random_crop_in_tinygrad(X)
-  X_cutmix_in_tinygrad, Y_cutmix_in_tinygrad = cutmix_in_tinygrad(X, Y)
-
-  assert (X_cropped == X_cropped_in_tinygrad).numpy().all(), "Cropped results do not match"
-  assert (X_cutmix == X_cutmix_in_tinygrad).numpy().all(), "Cutmix X results do not match"
-  assert (Y_cutmix == Y_cutmix_in_tinygrad).numpy().all(), "Cutmix Y results do not match"
+  print(f"Testing with batch size {BS} and seed {SEED}")
+  print("Crop:")
+  test_crop(X[:BS], crop_size=32, seed=SEED)
+  print("Cutmix:")
+  test_cutmix(X[:BS], Y[:BS], mask_size=3, seed=SEED)
   print("Tests passed")
