@@ -3,20 +3,19 @@ from tinygrad import dtypes, Tensor
 from tinygrad.helpers import getenv
 
 def make_mask(shape, mask_size:int) -> Tensor:
-  BS, _, W = shape
-  low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1)
-  idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape((1,1,W))
-  return (idx_x >= low_x) * (idx_x < (low_x + mask_size))
+  BS, W = shape
+  low = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1)
+  idx = Tensor.arange(W, dtype=dtypes.int32).reshape((1,W))
+  return (idx >= low) * (idx < (low + mask_size))
 
 def random_crop(X:Tensor, crop_size:int):
   mask = make_mask(X.shape, crop_size)
-  mask = mask.expand((-1,3,-1))
   X_cropped = Tensor(X.numpy()[mask.numpy()])
-  return X_cropped.reshape((-1, 3, crop_size))
+  return X_cropped.reshape((-1, crop_size))
 
 def random_crop_in_tinygrad(X:Tensor, crop_size:int):
   mask = make_mask(X.shape, crop_size)
-  return X.masked_select(mask).reshape((-1, 3, crop_size))
+  return X.masked_select(mask).reshape((-1, crop_size))
 
 def test_crop(X:Tensor, crop_size:int, seed:int):
   t1 = time.monotonic()
@@ -33,7 +32,7 @@ def test_crop(X:Tensor, crop_size:int, seed:int):
 if __name__ == "__main__":
   BS, SEED = getenv("BS", 512), getenv("SEED", 42)
   Tensor.manual_seed(SEED)
-  X = Tensor.rand((BS, 3, 32), dtype=dtypes.float32)
+  X = Tensor.rand((BS, 32), dtype=dtypes.float32)
   print(f"Batch size: {BS}, Seed: {SEED}")
   test_crop(X, crop_size=32, seed=SEED)
   print("Tests passed")
