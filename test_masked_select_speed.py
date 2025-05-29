@@ -4,16 +4,12 @@ from tinygrad.helpers import getenv
 
 def make_mask(shape, mask_size:int) -> Tensor:
   BS, W = shape
-  print("high randint prev ", W-mask_size)
   low = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1)
-  print("Low\n", low.numpy())
   idx = Tensor.arange(W, dtype=dtypes.int32).reshape((1,W))
-  print("Idx 1\n", idx.numpy())
   return (idx >= low) * (idx < (low + mask_size))
 
 def random_crop(X:Tensor, crop_size:int):
   mask = make_mask(X.shape, crop_size)
-  print("Mask\n", mask.numpy())
   X_cropped = Tensor(X.numpy()[mask.numpy()])
   return X_cropped.reshape((-1, crop_size))
 
@@ -24,13 +20,11 @@ def random_crop_in_tinygrad(X:Tensor, crop_size:int):
 def random_crop_index(X:Tensor, pad_size:int):
   BS, W = X.shape
   high = 2*pad_size
-  print("high randint index", high)
   low = Tensor.randint(BS, low=0, high=high).reshape(BS,1)
-  print("Low\n", low.numpy())
   idx = Tensor.arange(W, dtype=dtypes.int32).reshape((1,W))
-  print("Idx 1\n", idx.numpy())
-  idx = (low + idx) % W
-  print("Index\n", idx.numpy())
+  idx = (low + idx - pad_size)
+  idx = idx.abs() # left reflect
+  idx = (idx >= W).where(2 * W - idx - 2, idx) # right reflect
   return X.gather(1, idx)
 
 def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
@@ -38,10 +32,10 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   t1 = time.monotonic()
   Tensor.manual_seed(seed)
   X_cropped = random_crop(X_padded, crop_size=crop_size).numpy()
-  # t2 = time.monotonic()
-  # Tensor.manual_seed(seed)
-  # X_cropped_in_tinygrad = random_crop_in_tinygrad(X_padded, crop_size=crop_size).numpy()
-  # t3 = time.monotonic()
+  t2 = time.monotonic()
+  Tensor.manual_seed(seed)
+  X_cropped_in_tinygrad = random_crop_in_tinygrad(X_padded, crop_size=crop_size).numpy()
+  t3 = time.monotonic()
   Tensor.manual_seed(seed)
   X_cropped_index = random_crop_index(X, pad_size=pad_size).numpy()
   t4 = time.monotonic()
