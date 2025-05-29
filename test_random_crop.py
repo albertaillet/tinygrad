@@ -24,20 +24,18 @@ def random_crop_masked_select(X:Tensor, crop_size:int):
   mask = make_square_mask(X.shape, crop_size)
   return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
+def crop_indices(batch_size:int, dim_size:int, pad_size:int):
+  low = Tensor.randint(batch_size, low=0, high=2*pad_size).reshape(batch_size,1)
+  idx = Tensor.arange(dim_size, dtype=dtypes.int32).reshape(1,dim_size)
+  idx = (idx - pad_size + low)  # start from padding and add offset
+  idx = idx.abs() # left reflect
+  idx = (idx < dim_size).where(idx, 2*(dim_size-1)-idx) # right reflect
+  return idx
+
 def random_crop_index(X:Tensor, pad_size:int):
   BS, C, H, W = X.shape
-  low_x = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1,1,1)
-  idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape(1,1,1,W)
-  idx_x = (idx_x - pad_size + low_x)  # start from padding and add offset
-  idx_x = idx_x.abs() # left reflect
-  idx_x = (idx_x < W).where(idx_x, 2*(W-1)-idx_x) # right reflect
-
-  low_y = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1,1,1)
-  idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape(1,1,H,1)
-  idx_y = (idx_y - pad_size + low_y)  # start from padding and add offset
-  idx_y = idx_y.abs() # top reflect
-  idx_y = (idx_y < H).where(idx_y, 2*(H-1)-idx_y) # bottom reflect
-
+  idx_x = crop_indices(BS, W, pad_size).reshape(BS, 1, 1, W)
+  idx_y = crop_indices(BS, H, pad_size).reshape(BS, 1, H, 1)
   idx_flat = (idx_y * W + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)  # flatten the spatial dimensions
   X_flat = X.reshape(BS, C, H*W)  # flatten the spatial dimensions
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
