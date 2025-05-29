@@ -1,44 +1,24 @@
 #!/usr/bin/env python3
-
-# tinygrad implementation of https://github.com/tysam-code/hlb-CIFAR10/blob/main/main.py
-# https://myrtle.ai/learn/how-to-train-your-resnet-8-bag-of-tricks/
-# https://siboehm.com/articles/22/CUDA-MMM
-import random
-from tinygrad import dtypes, Tensor
-from tinygrad.helpers import getenv
+from os import getenv
 import numpy as np
 from PIL import Image
-from term_image.image import AutoImage
-from einops import rearrange
 
-def set_seed(seed):
-  Tensor.manual_seed(seed)
-  random.seed(seed)
-
-def make_square_mask(shape, mask_size) -> Tensor:
+def make_mask(shape, mask_size:int) -> np.ndarray:
   BS, _, H, W = shape
-  low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
-  low_y = Tensor.randint(BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
-  idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape((1,1,1,W))
-  idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape((1,1,H,1))
+  low_x = np.random.randint(size=BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
+  low_y = np.random.randint(size=BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
+  idx_x = np.arange(W).reshape((1,1,1,W))
+  idx_y = np.arange(H).reshape((1,1,H,1))
   return (idx_x >= low_x) * (idx_x < (low_x + mask_size)) * (idx_y >= low_y) * (idx_y < (low_y + mask_size))
 
-def to_grid(x, ih: int, iw: int):
-  '''Rearranges a array of images with shape (n, c, h, w) to a grid of shape (c, ih*h, iw*w)'''
-  return rearrange(x, '(ih iw) c h w -> (ih h) (iw w) c', ih=ih, iw=iw)
+def to_grid(x:np.ndarray, ih: int, iw: int) -> np.ndarray:
+    BS, C, H, W = x.shape  # x is of shape (ih*iw, c, h, w)
+    assert BS == ih * iw, "Batch size must equal ih * iw"
+    return x.reshape(ih, iw, C, H, W).transpose(0, 3, 1, 4, 2).reshape(ih * H, iw * W, C)
 
 if __name__ == "__main__":
-  set_seed(209)
-  num_images, mask_size = getenv("BS", 10), getenv("MASK_SIZE", 32)
-  shape = (num_images, 3, 32, 32)  # BS, C, H, W
-  # mask = make_square_mask(shape, mask_size).expand((-1,3,-1,-1))
-  # images_per_row = 5
-  # print(mask.shape)
-  # full_image = to_grid(mask.numpy(), num_images, 1)  # Convert to grid of images
-  # print(full_image.shape)
-  # img = Image.fromarray((full_image * 255).astype(np.uint8))
-  # AutoImage(img).draw()
-  for _ in range(10):
-    mask = make_square_mask(shape, mask_size).numpy()
-    print(mask.mean())
-    assert mask.all(), "Mask should be all True or all False"
+  BS, mask_size, images_per_row = int(getenv("BS", 300)), int(getenv("MASK_SIZE", 32)), int(getenv("ROW", 25))
+  shape = (BS, 3, 36, 36)
+  mask = make_mask(shape, mask_size)
+  full_image = to_grid(mask, BS // images_per_row, images_per_row).repeat(repeats=3, axis=-1)
+  Image.fromarray((full_image * 255).astype(np.uint8)).show()
