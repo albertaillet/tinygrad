@@ -26,6 +26,9 @@ def random_crop_index(X:Tensor, pad_size:int):
   idx = (idx < W).where(idx, 2*(W-1)-idx) # right reflect
   return X.gather(dim=1, index=idx)
 
+def pad_reflect(X:Tensor, size:int) -> Tensor:
+  return X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
+
 def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_padded = pad_reflect(X, size=pad_size)
   t1 = time.monotonic()
@@ -39,14 +42,10 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_cropped_index = random_crop_index(X, pad_size=pad_size).numpy()
   t4 = time.monotonic()
   for k,v in locals().items():
-    if k.startswith("X"):
-      print(f"{k:20}\n{v.numpy() if isinstance(v, Tensor) else v}\n")
-  assert (X_cropped == X_cropped_index).all(), "Cropped results with index do not match"
+    if k.startswith("X"): print(f"{k:20}\n{v.numpy() if isinstance(v, Tensor) else v}\n")
   assert (X_cropped == X_cropped_in_tinygrad).all(), "Cropped results do not match"
+  assert (X_cropped == X_cropped_index).all(), "Cropped results with index do not match"
   print(f"{(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms tinygrad, {(t4-t3)*1000.0:7.2f} ms index")
-
-def pad_reflect(X:Tensor, size:int) -> Tensor:
-    return X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
 
 if __name__ == "__main__":
   SIZE, BS, SEED, PAD_SIZE = getenv("SIZE", 512), getenv("BS", 512), getenv("SEED", 42), getenv("PAD_SIZE", 2)
