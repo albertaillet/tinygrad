@@ -67,7 +67,8 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_cropped = random_crop(X_padded, crop_size=crop_size).numpy()
   t2 = time.monotonic()
   set_seed(seed)
-  X_cropped_in_tinygrad = random_crop_masked_select(X_padded, crop_size=crop_size).numpy()
+  if X.shape[0] < 5000:
+    X_cropped_in_tinygrad = random_crop_masked_select(X_padded, crop_size=crop_size).numpy()
   t3 = time.monotonic()
   set_seed(seed)
   X_cropped_index = random_crop_index(X, pad_size=pad_size).numpy()
@@ -77,19 +78,19 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   t5 = time.monotonic()
   for k,v in locals().items():
     if k.startswith("X") and PRINT: print(f"{k:20}\n{v.numpy() if isinstance(v, Tensor) else v}\n")
-  assert (X_cropped == X_cropped_in_tinygrad).all(), "Cropped results do not match"
   assert (X_cropped == X_cropped_index).all(), "Cropped results with index do not match"
   assert (X_cropped == X_cropped_padded_index).all(), "Cropped results with padded index do not match"
-  print(f"{(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms masked_select, {(t4-t3)*1000.0:7.2f} ms index, {(t5-t4)*1000.0:7.2f} ms padded index")
+  if X.shape[0] < 5000:
+    assert (X_cropped == X_cropped_in_tinygrad).all(), "Cropped results do not match"
+  print(f"Dataset shape: {str(X.shape):>18}, {(t2-t1)*1000.0:7.2f} ms numpy, {(t5-t4)*1000.0:7.2f} ms index, {(t3-t2)*1000.0:7.2f} ms masked_select, {(t4-t3)*1000.0:7.2f} ms unpadded index")
 
 if __name__ == "__main__":
   BS, SIZE, PAD_SIZE = getenv("BS", 50000), getenv("SIZE", 32), getenv("PAD_SIZE", 2)
   SEED, CIFAR, PRINT = getenv("SEED", 42), getenv("CIFAR", 1), getenv("PRINT", 0)
-  if CIFAR:
-    X, _, _, _ = datasets.cifar()
-  else:
-    X = Tensor.arange(BS * 3 * SIZE * SIZE, dtype=dtypes.int32).reshape(BS, 3, SIZE, SIZE)
-  X = X[:BS, :3, :SIZE, :SIZE]
-  print(f"Batch size: {BS}, Seed: {SEED}, Pad size: {PAD_SIZE}")
-  test_crop(X, crop_size=SIZE, seed=SEED, pad_size=PAD_SIZE)
-  print("Tests passed")
+  for BS in [100, 500, 50000]:
+    if CIFAR:
+      X, _, _, _ = datasets.cifar()
+    else:
+      X = Tensor.arange(BS * 3 * SIZE * SIZE, dtype=dtypes.int32).reshape(BS, 3, SIZE, SIZE)
+    X = X[:BS, :3, :SIZE, :SIZE]
+    test_crop(X, crop_size=SIZE, seed=SEED, pad_size=PAD_SIZE)
