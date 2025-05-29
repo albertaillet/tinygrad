@@ -40,8 +40,8 @@ def random_crop_index(X:Tensor, pad_size:int):
   BS, C, H, W = X.shape
   idx_x = crop_indices(BS, W, pad_size).reshape(BS, 1, 1, W)
   idx_y = crop_indices(BS, H, pad_size).reshape(BS, 1, H, 1)
-  idx_flat = (idx_y * W + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)  # flatten the spatial dimensions
-  X_flat = X.reshape(BS, C, H*W)  # flatten the spatial dimensions
+  idx_flat = (idx_y * W + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)
+  X_flat = X.reshape(BS, C, H*W)
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
 
 def random_crop_padded_index(X:Tensor, pad_size:int):
@@ -49,10 +49,10 @@ def random_crop_padded_index(X:Tensor, pad_size:int):
   H, W = H_pad - 2*pad_size, W_pad - 2*pad_size
   low_x, idx_x = random_low_and_indices(BS, W, 2*pad_size)
   low_y, idx_y = random_low_and_indices(BS, H, 2*pad_size)
-  idx_x = idx_x.reshape(1,1,1,W)+low_x.reshape(BS,1,1,1)
-  idx_y = idx_y.reshape(1,1,H,1)+low_y.reshape(BS,1,1,1)
-  idx_flat = (idx_y * W_pad + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)  # flatten the spatial dimensions
-  X_flat = X.reshape(BS, C, H_pad*W_pad)  # flatten the spatial dimensions
+  idx_x = (idx_x+low_x).reshape(BS,1,W)
+  idx_y = (idx_y+low_y).reshape(BS,H,1)
+  idx_flat = (idx_y * W_pad + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)
+  X_flat = X.reshape(BS, C, H_pad*W_pad)
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
 
 def pad_reflect(X:Tensor, size:int) -> Tensor:
@@ -83,7 +83,7 @@ def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   print(f"{(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms masked_select, {(t4-t3)*1000.0:7.2f} ms index, {(t5-t4)*1000.0:7.2f} ms padded index")
 
 if __name__ == "__main__":
-  BS, SIZE, PAD_SIZE = getenv("BS", 512), getenv("SIZE", 32), getenv("PAD_SIZE", 2)
+  BS, SIZE, PAD_SIZE = getenv("BS", 50000), getenv("SIZE", 32), getenv("PAD_SIZE", 2)
   SEED, CIFAR, PRINT = getenv("SEED", 42), getenv("CIFAR", 1), getenv("PRINT", 0)
   if CIFAR:
     X, _, _, _ = datasets.cifar()
