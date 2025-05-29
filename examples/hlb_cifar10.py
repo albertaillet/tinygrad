@@ -8,7 +8,7 @@ import numpy as np
 from typing import Optional
 from extra.lr_scheduler import OneCycleLR
 from tinygrad import nn, dtypes, Tensor, Device, GlobalCounters, TinyJit
-from tinygrad.nn.state import get_state_dict, get_parameters
+from tinygrad.nn.state import get_state_dict
 from tinygrad.nn import optim
 from tinygrad.helpers import Context, BEAM, WINO, getenv, colored, prod
 from extra.bench_log import BenchEvent, WallTimeEvent
@@ -152,7 +152,7 @@ def train_cifar():
     random.seed(seed)
 
   # ========== Model ==========
-  def whitening(X, kernel_size=hyp['net']['kernel_size']):
+  def whitening(X:Tensor, kernel_size:int)-> Tensor:
     def _cov(X):
       return (X.T @ X) / (X.shape[0] - 1)
 
@@ -175,7 +175,7 @@ def train_cifar():
     return Tensor(W.astype(np.float32), requires_grad=False).cast(dtypes.default_float)
 
   # ========== Loss ==========
-  def cross_entropy(x:Tensor, y:Tensor, reduction:str='mean', label_smoothing:float=0.0) -> Tensor:
+  def cross_entropy(x:Tensor, y:Tensor, reduction:str, label_smoothing:float=0.0) -> Tensor:
     divisor = y.shape[1]
     assert isinstance(divisor, int), "only supported int divisor"
     y = (1 - label_smoothing)*y + label_smoothing / divisor
@@ -187,13 +187,13 @@ def train_cifar():
 
   # ========== Preprocessing ==========
   # NOTE: this only works for RGB in format of NxCxHxW and pads the HxW
-  def pad_reflect(X, size=2) -> Tensor:
+  def pad_reflect(X:Tensor, size:int) -> Tensor:
     X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
     X = X[...,1:size+1,:].flip(-2).cat(X, X[...,-(size+1):-1,:].flip(-2), dim=-2)
     return X
 
   # return a binary mask in the format of BS x C x H x W where H x W contains a random square mask
-  def make_square_mask(shape, mask_size) -> Tensor:
+  def make_square_mask(shape, mask_size:int) -> Tensor:
     BS, _, H, W = shape
     low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
     low_y = Tensor.randint(BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
@@ -201,7 +201,7 @@ def train_cifar():
     idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape((1,1,H,1))
     return (idx_x >= low_x) * (idx_x < (low_x + mask_size)) * (idx_y >= low_y) * (idx_y < (low_y + mask_size))
 
-  def random_crop(X:Tensor, crop_size=32):
+  def random_crop(X:Tensor, crop_size:int) -> Tensor:
     mask = make_square_mask(X.shape, crop_size)
     return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
@@ -280,7 +280,7 @@ def train_cifar():
   X_train, X_test = X_train.sequential(transform), X_test.sequential(transform)
 
   # precompute whitening patches
-  W = whitening(X_train)
+  W = whitening(X_train, kernel_size=hyp['net']['kernel_size'])
 
   # initialize model weights
   model = SpeedyResNet(W)
