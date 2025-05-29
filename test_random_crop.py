@@ -43,10 +43,9 @@ def test_crop(X:Tensor, crop_size:int, seed:int):
 
 if __name__ == "__main__":
   BS, SEED = getenv("BS", 512), getenv("SEED", 42)
-  X, Y, _, _ = datasets.cifar()
-  Y = Y.one_hot(10)
+  X, _, _, _ = datasets.cifar()
   X = pad_reflect(X, size=2)  # pad to 36x36
-  X, Y = X[:BS], Y[:BS]  # limit batch size
+  X = X[:BS]  # limit batch size
   print(f"Batch size: {BS}, Seed: {SEED}")
   print("Crop:")
   test_crop(X, crop_size=32, seed=SEED)
