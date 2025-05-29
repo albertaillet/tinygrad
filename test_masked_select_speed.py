@@ -19,13 +19,12 @@ def random_crop_in_tinygrad(X:Tensor, crop_size:int):
 
 def random_crop_index(X:Tensor, pad_size:int):
   BS, W = X.shape
-  high = 2*pad_size
-  low = Tensor.randint(BS, low=0, high=high).reshape(BS,1)
+  low = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1)
   idx = Tensor.arange(W, dtype=dtypes.int32).reshape((1,W))
-  idx = (low + idx - pad_size)
+  idx = (idx - pad_size + low)  # start from padding and add offset
   idx = idx.abs() # left reflect
-  idx = (idx >= W).where(2 * W - idx - 2, idx) # right reflect
-  return X.gather(1, idx)
+  idx = (idx < W).where(idx, 2*(W-1)-idx) # right reflect
+  return X.gather(dim=1, index=idx)
 
 def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_padded = pad_reflect(X, size=pad_size)
