@@ -6,12 +6,17 @@ from tinygrad.helpers import getenv
 def set_seed(seed):
   Tensor.manual_seed(seed)
 
+def random_low_and_indices(batch_size:int, dim_size:int, high:int):
+  low = Tensor.randint(batch_size, low=0, high=high).reshape(batch_size,1)
+  idx = Tensor.arange(dim_size, dtype=dtypes.int32).reshape(1,dim_size)
+  return low, idx
+
 def make_square_mask(shape, mask_size:int) -> Tensor:
   BS, _, H, W = shape
-  low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
-  low_y = Tensor.randint(BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
-  idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape(1,1,1,W)
-  idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape(1,1,H,1)
+  low_x, idx_x = random_low_and_indices(BS, W, W-mask_size)
+  low_y, idx_y = random_low_and_indices(BS, H, H-mask_size)
+  low_x, idx_x = low_x.reshape(BS,1,1,1), idx_x.reshape(1,1,1,W)
+  low_y, idx_y = low_y.reshape(BS,1,1,1), idx_y.reshape(1,1,H,1)
   return (idx_x >= low_x) * (idx_x < (low_x + mask_size)) * (idx_y >= low_y) * (idx_y < (low_y + mask_size))
 
 def random_crop(X:Tensor, crop_size:int):
@@ -41,9 +46,9 @@ def random_crop_index(X:Tensor, pad_size:int):
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
 
 def pad_reflect(X:Tensor, size:int) -> Tensor:
-    X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
-    X = X[...,1:size+1,:].flip(-2).cat(X, X[...,-(size+1):-1,:].flip(-2), dim=-2)
-    return X
+  X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
+  X = X[...,1:size+1,:].flip(-2).cat(X, X[...,-(size+1):-1,:].flip(-2), dim=-2)
+  return X
 
 def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_padded = pad_reflect(X, size=pad_size)
