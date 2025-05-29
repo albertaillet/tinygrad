@@ -94,10 +94,10 @@ if __name__ == "__main__":
   X, Y, _, _ = datasets.cifar()
   Y = Y.one_hot(10)
   X = pad_reflect(X, size=2)  # pad to 36x36
-
-  print(f"Testing with batch size {BS} and seed {SEED}")
+  X, Y = X[:BS], Y[:BS]  # limit batch size
+  print(f"Batch size: {BS}, Seed: {SEED}")
   print("Crop:")
-  test_crop(X[:BS], crop_size=32, seed=SEED)
+  test_crop(X, crop_size=32, seed=SEED)
   print("Cutmix:")
-  test_cutmix(X[:BS], Y[:BS], mask_size=3, seed=SEED)
+  test_cutmix(X, Y, mask_size=3, seed=SEED)
   print("Tests passed")
