@@ -13,10 +13,10 @@ def random_low_and_indices(batch_size:int, dim_size:int, high:int):
 
 def make_square_mask(shape, mask_size:int) -> Tensor:
   BS, _, H, W = shape
-  low_x, idx_x = random_low_and_indices(BS, W, W-mask_size)
-  low_y, idx_y = random_low_and_indices(BS, H, H-mask_size)
-  low_x, idx_x = low_x.reshape(BS,1,1,1), idx_x.reshape(1,1,1,W)
-  low_y, idx_y = low_y.reshape(BS,1,1,1), idx_y.reshape(1,1,H,1)
+  low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
+  low_y = Tensor.randint(BS, low=0, high=H-mask_size).reshape(BS,1,1,1)
+  idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape((1,1,1,W))
+  idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape((1,1,H,1))
   return (idx_x >= low_x) * (idx_x < (low_x + mask_size)) * (idx_y >= low_y) * (idx_y < (low_y + mask_size))
 
 def random_crop(X:Tensor, crop_size:int):
