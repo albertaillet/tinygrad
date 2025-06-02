@@ -25,16 +25,16 @@ def random_crop_masked_select(X:Tensor, crop_size:int):
   return X.masked_select(mask).reshape((-1, 3, crop_size, crop_size))
 
 def random_crop_index(X:Tensor, pad_size:int):
-  BS, C, H_pad, W_pad = X.shape
-  H, W = H_pad - 2*pad_size, W_pad - 2*pad_size
+  BS, C, H_padded, W_padded = X.shape
+  H, W = H_padded - 2*pad_size, W_padded - 2*pad_size
   low_x = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1,1,1)
   low_y = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1,1,1)
   idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape(1,1,1,W)
   idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape(1,1,H,1)
   idx_x = (idx_x+low_x).reshape(BS,1,W)
   idx_y = (idx_y+low_y).reshape(BS,H,1)
-  idx_flat = (idx_y * W_pad + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)
-  X_flat = X.reshape(BS, C, H_pad*W_pad)
+  idx_flat = (idx_y * W_padded + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)
+  X_flat = X.reshape(BS, C, H_padded*W_padded)
   return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
 
 def pad_reflect(X:Tensor, size:int) -> Tensor:
