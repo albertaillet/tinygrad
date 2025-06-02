@@ -3,9 +3,6 @@ from tinygrad import dtypes, Tensor
 from tinygrad.nn import datasets
 from tinygrad.helpers import getenv
 
-def set_seed(seed):
-  Tensor.manual_seed(seed)
-
 def make_square_mask(shape, mask_size:int) -> Tensor:
   BS, _, H, W = shape
   low_x = Tensor.randint(BS, low=0, high=W-mask_size).reshape(BS,1,1,1)
@@ -43,31 +40,21 @@ def pad_reflect(X:Tensor, size:int) -> Tensor:
 def test_crop(X:Tensor, crop_size:int, seed:int, pad_size:int):
   X_padded = pad_reflect(X, size=pad_size)
   t1 = time.monotonic()
-  set_seed(seed)
+  Tensor.manual_seed(seed)
   X_cropped_numpy = random_crop(X_padded, crop_size=crop_size).numpy()
   t2 = time.monotonic()
-  set_seed(seed)
+  Tensor.manual_seed(seed)
   X_cropped_index = random_crop_index(X_padded, pad_size=pad_size).numpy()
   t3 = time.monotonic()
-  set_seed(seed)
-  if X_padded.shape[0] < RUN_MASKED_SELECT_FOR:
-    X_cropped_masked_select = random_crop_masked_select(X_padded, crop_size=crop_size).numpy()
+  Tensor.manual_seed(seed)
+  if BS < MASKED_SELECT_MAX_BS: X_cropped_masked_select = random_crop_masked_select(X_padded, crop_size=crop_size).numpy()
   t4 = time.monotonic()
-  for k,v in locals().items():
-    if k.startswith("X") and PRINT: print(f"{k:20}\n{v.numpy() if isinstance(v, Tensor) else v}\n")
-  assert (X_cropped_numpy == X_cropped_index).all(), "Cropped results with index do not match"
-  if X.shape[0] < RUN_MASKED_SELECT_FOR:
-    assert (X_cropped_numpy == X_cropped_masked_select).all(), "Cropped results do not match"
+  assert (X_cropped_numpy == X_cropped_index).all()
+  if BS < MASKED_SELECT_MAX_BS: assert (X_cropped_numpy == X_cropped_masked_select).all()
   print(f"Dataset shape: {str(X.shape):>18}, {(t2-t1)*1000.0:7.2f} ms numpy, {(t3-t2)*1000.0:7.2f} ms index, {(t4-t3)*1000.0:7.2f} ms masked_select")
 
 if __name__ == "__main__":
-  SIZE, PAD_SIZE = getenv("SIZE", 32), getenv("PAD_SIZE", 2)
-  SEED, CIFAR, PRINT = getenv("SEED", 42), getenv("CIFAR", 1), getenv("PRINT", 0)
-  RUN_MASKED_SELECT_FOR = getenv("RUN_MASKED_SELECT_FOR", 5000)
+  SEED, PAD_SIZE, MASKED_SELECT_MAX_BS = getenv("SEED", 42), getenv("PAD_SIZE", 2), getenv("MASKED_SELECT_MAX_BS", 1000)
+  X, _, _, _ = datasets.cifar()
   for BS in [100, 500, 50000]:
-    if CIFAR:
-      X, _, _, _ = datasets.cifar()
-    else:
-      X = Tensor.arange(BS * 3 * SIZE * SIZE, dtype=dtypes.int32).reshape(BS, 3, SIZE, SIZE)
-    X = X[:BS, :3, :SIZE, :SIZE]
-    test_crop(X, crop_size=SIZE, seed=SEED, pad_size=PAD_SIZE)
+    test_crop(X[:BS], crop_size=32, seed=SEED, pad_size=PAD_SIZE)
