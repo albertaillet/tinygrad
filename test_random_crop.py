@@ -31,11 +31,10 @@ def random_crop_index(X:Tensor, pad_size:int):
   low_y = Tensor.randint(BS, low=0, high=2*pad_size).reshape(BS,1,1,1)
   idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape(1,1,1,W)
   idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape(1,1,H,1)
-  idx_x = (idx_x+low_x).reshape(BS,1,W)
-  idx_y = (idx_y+low_y).reshape(BS,H,1)
-  idx_flat = (idx_y * W_padded + idx_x).reshape(BS, 1, H*W).expand(BS, C, H*W)
+  mask_idx = ((idx_y+low_y) * W_padded + (idx_x+low_x))
+  mask_idx_flat = mask_idx.reshape(BS, 1, H*W).expand(BS, C, H*W)
   X_flat = X.reshape(BS, C, H_padded*W_padded)
-  return X_flat.gather(2, idx_flat).reshape(BS, C, H, W)
+  return X_flat.gather(2, mask_idx_flat).reshape(BS, C, H, W)
 
 def pad_reflect(X:Tensor, size:int) -> Tensor:
   X = X[...,:,1:size+1].flip(-1).cat(X, X[...,:,-(size+1):-1].flip(-1), dim=-1)
