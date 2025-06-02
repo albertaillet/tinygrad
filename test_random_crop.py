@@ -32,7 +32,7 @@ def random_crop_index(X:Tensor, pad_size:int):
   idx_x = Tensor.arange(W, dtype=dtypes.int32).reshape(1,1,1,W)
   idx_y = Tensor.arange(H, dtype=dtypes.int32).reshape(1,1,H,1)
   mask_idx = ((idx_y+low_y) * W_padded + (idx_x+low_x))
-  mask_idx_flat = mask_idx.reshape(BS, 1, H*W).expand(BS, C, H*W)
+  mask_idx_flat = mask_idx.expand(BS, C, H, W).reshape(BS, C, H*W)
   X_flat = X.reshape(BS, C, H_padded*W_padded)
   return X_flat.gather(2, mask_idx_flat).reshape(BS, C, H, W)
 
